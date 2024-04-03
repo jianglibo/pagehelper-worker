@@ -10,7 +10,7 @@
 
 import handleProxy from './proxy';
 import handleRedirect from './redirect';
-import apiRouter from './router';
+import apiRouter from './fixture-router';
 
 // Export a default object containing event handlers
 export default {

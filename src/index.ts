@@ -8,11 +8,9 @@
  * Learn more at https://developers.cloudflare.com/workers/
  */
 
-import handleProxy from './proxy';
-import handleRedirect from './redirect';
-import apiRouter from './router';
+import fixturesRoute from './fixture-router';
 
-type WantDataType = 'json' | 'text'
+export type WantType = 'map' | 'list' | 'raw'
 
 // Export a default object containing event handlers
 export default {
@@ -25,32 +23,14 @@ export default {
 		const phIdHeader = request.headers.get('Ph-Id');
 		const phGroupIdHeader = request.headers.get('Ph-Group-Id');
 
-		const { searchParams, pathname } = new URL(request.url)
+		let res
 
-		if ('fixtures/group-response' === pathname) {
-			const __changed_value = searchParams.get('__changed_value')
-			const wantType = searchParams.get('wantType') as WantDataType || 'json'
-			const want = searchParams.get('want')
-
-			if (wantType === 'json') {
-				return new Response(JSON.stringify({ data: { __changed_value } }), {
-					headers: {
-						'Content-Type': 'application/json',
-						'Ph-Id': phIdHeader || '',
-						'Ph-Group-Id': phGroupIdHeader || '',
-					}
-				})
-			} else {
-				return new Response(__changed_value, {
-					headers: {
-						'Content-Type': 'text/plain',
-						'Ph-Id': phIdHeader || '',
-						'Ph-Group-Id': phGroupIdHeader || '',
-					}
-				})
-			}
+		if (url.pathname.startsWith('/fixtures')) {
+			res = await fixturesRoute.handle(request, { url })
+		} else {
+			res = await fetch(request)
 		}
-		let res = await fetch(request)
+
 		if (phIdHeader || phGroupIdHeader) {
 			res = new Response(res.body, res);
 			if (phIdHeader)
