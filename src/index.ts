@@ -12,6 +12,8 @@ import handleProxy from './proxy';
 import handleRedirect from './redirect';
 import apiRouter from './router';
 
+type WantDataType = 'json' | 'text'
+
 // Export a default object containing event handlers
 export default {
 	// The fetch handler is invoked when this worker receives a HTTP(S) request
@@ -20,29 +22,43 @@ export default {
 		// You'll find it helpful to parse the request.url string into a URL object. Learn more at https://developer.mozilla.org/en-US/docs/Web/API/URL
 		const url = new URL(request.url);
 
-		// const phIdHeader = 
+		const phIdHeader = request.headers.get('Ph-Id');
+		const phGroupIdHeader = request.headers.get('Ph-Group-Id');
 
+		const { searchParams, pathname } = new URL(request.url)
+
+		if ('fixtures/group-response' === pathname) {
+			const __changed_value = searchParams.get('__changed_value')
+			const wantType = searchParams.get('wantType') as WantDataType || 'json'
+			const want = searchParams.get('want')
+
+			if (wantType === 'json') {
+				return new Response(JSON.stringify({ data: { __changed_value } }), {
+					headers: {
+						'Content-Type': 'application/json',
+						'Ph-Id': phIdHeader || '',
+						'Ph-Group-Id': phGroupIdHeader || '',
+					}
+				})
+			} else {
+				return new Response(__changed_value, {
+					headers: {
+						'Content-Type': 'text/plain',
+						'Ph-Id': phIdHeader || '',
+						'Ph-Group-Id': phGroupIdHeader || '',
+					}
+				})
+			}
+		}
+		let res = await fetch(request)
+		if (phIdHeader || phGroupIdHeader) {
+			res = new Response(res.body, res);
+			if (phIdHeader)
+				res.headers.set('Ph-Id', phIdHeader);
+			if (phGroupIdHeader)
+				res.headers.set('Ph-Group-Id', phGroupIdHeader);
+		}
+		return res
 		// You can get pretty far with simple logic like if/switch-statements
-		switch (url.pathname) {
-			case '/redirect':
-				return handleRedirect.fetch(request, env, ctx);
-
-			case '/proxy':
-				return handleProxy.fetch(request, env, ctx);
-		}
-
-		if (url.pathname.startsWith('/api/')) {
-			// You can also use more robust routing
-			return apiRouter.handle(request);
-		}
-
-		return new Response(
-			`Try making requests to:
-      <ul>
-      <li><code><a href="/redirect?redirectUrl=https://example.com/">/redirect?redirectUrl=https://example.com/</a></code>,</li>
-      <li><code><a href="/proxy?modify&proxyUrl=https://example.com/">/proxy?modify&proxyUrl=https://example.com/</a></code>, or</li>
-      <li><code><a href="/api/todos">/api/todos</a></code></li>`,
-			{ headers: { 'Content-Type': 'text/html' } }
-		);
 	},
 };
