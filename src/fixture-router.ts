@@ -11,6 +11,11 @@ const router = Router({
 	// finally: [json],
 })
 
+type EmailAndPassword = {
+	email: string
+	password: string
+}
+
 const demodata = {
 	a: [1, 2, 3],
 	b: [4, 5, 6],
@@ -49,12 +54,62 @@ function idResponse(request: Request, url: URL) {
 			'Content-Type': 'application/json'
 		}
 	})
-
-
 }
 
 router.delete("/todo", (request, { url }) => {
 	return idResponse(request, url)
+})
+
+router.post("/ph-form", async (request, { url }) => {
+	const requestBody = await request.json()
+	const { email, password } = requestBody as EmailAndPassword
+	// validate email by regex
+	const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+	// password shoud has length 6 - 32
+	const isValidPassword = password.length >= 6 && password.length <= 32
+
+	const respData = {
+		"data": [
+			{
+				"action": "FAILED_VALIDATES",
+				"params": {
+					"failedValidates": []
+				}
+			},
+			{
+				"action": "TOAST",
+				"params": {
+					"toast": {
+						"icon": "warning",
+						"title": "validate failed.",
+						"timer": 3000
+					}
+				}
+			}
+		]
+	}
+
+	if (!isValidEmail) {
+		(respData.data[0].params?.failedValidates as { name: string, message: string }[]).push(
+			{
+				"name": "email",
+				"message": "it's not a valid email."
+			}
+		)
+	}
+	if (!isValidPassword) {
+		(respData.data[0].params?.failedValidates as { name: string, message: string }[]).push(
+			{
+				"name": "password",
+				"message": "length should between 6 - 32"
+			}
+		)
+	}
+	return new Response(JSON.stringify(respData), {
+		headers: {
+			'Content-Type': 'application/json'
+		}
+	})
 })
 
 router.get("/todo", (request, { url }) => {
