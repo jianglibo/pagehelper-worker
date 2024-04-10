@@ -9,6 +9,7 @@
  */
 
 import fixturesRoute from './fixture-router';
+import highlightRoute from './highlight-router'
 
 export type WantType = 'map' | 'list' | 'raw'
 
@@ -60,6 +61,8 @@ export default {
 
 		if (url.pathname.startsWith('/fixtures')) {
 			res = await fixturesRoute.fetch(request, { url })
+		} else if (url.pathname.startsWith('/highlight')) {
+			res = await highlightRoute.fetch(request)
 		} else {
 			res = await fetch(request)
 		}
