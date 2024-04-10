@@ -20,6 +20,19 @@ export default {
 	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
 		// You'll find it helpful to parse the request.url string into a URL object. Learn more at https://developer.mozilla.org/en-US/docs/Web/API/URL
 
+		// if the method is option, return allow cors headers
+		if (request.method === 'OPTIONS') {
+			return new Response(null, {
+				headers: {
+					'Access-Control-Allow-Origin': '*',
+					'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+					// 'Access-Control-Allow-Headers': 'Content-Type, Ph-Id, Ph-Group-Id',
+					'Access-Control-Allow-Headers': '*',
+					'Access-Control-Max-Age': '86400',
+					'Access-Control-Allow-Credential': 'true',
+				},
+			})
+		}
 
 		// return new Response('ok')
 		const url = new URL(request.url);
@@ -67,19 +80,27 @@ export default {
 			res = await fetch(request)
 		}
 
+
+		const nh = new Headers(res.headers)
 		if (phIdHeader || phGroupIdHeader) {
-			const nh = new Headers(res.headers)
 			if (phIdHeader)
 				nh.set('Ph-Id', phIdHeader)
 			// append this header to immuatable response
 			if (phGroupIdHeader)
 				nh.set('Ph-Group-Id', phGroupIdHeader)
-			return new Response(res.body, {
-				status: res.status,
-				statusText: res.statusText,
-				headers: nh,
-			})
 		}
-		return res
+		// echo 'Access-Control-Allow-Origin': origin,
+		// echo 'Access-Control-Allow-Credentials': 'true',
+
+		nh.set('Access-Control-Allow-Origin', request.headers.get('Origin') || '*')
+		nh.set('Access-Control-Allow-Credentials', 'true')
+		nh.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+		nh.set('Access-Control-Allow-Headers', '*')
+
+		return new Response(res.body, {
+			status: res.status,
+			statusText: res.statusText,
+			headers: nh,
+		})
 	},
 };
