@@ -10,8 +10,19 @@
 
 import fixturesRoute from './fixture-router';
 import highlightRoute from './highlight-router'
+import uploadRoute from './upload-router'
+import getFileRoute from './get-file-router'
 
 export type WantType = 'map' | 'list' | 'raw'
+
+function appendCorsHeaders(request: Request, headers?: Headers) {
+	let nh = headers || new Headers()
+	nh.set('Access-Control-Allow-Origin', request.headers.get('Origin') || '*')
+	nh.set('Access-Control-Allow-Credentials', 'true')
+	nh.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+	nh.set('Access-Control-Allow-Headers', '*')
+	return nh
+}
 
 // Export a default object containing event handlers
 export default {
@@ -23,14 +34,7 @@ export default {
 		// if the method is option, return allow cors headers
 		if (request.method === 'OPTIONS') {
 			return new Response(null, {
-				headers: {
-					'Access-Control-Allow-Origin': '*',
-					'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-					// 'Access-Control-Allow-Headers': 'Content-Type, Ph-Id, Ph-Group-Id',
-					'Access-Control-Allow-Headers': '*',
-					'Access-Control-Max-Age': '86400',
-					'Access-Control-Allow-Credential': 'true',
-				},
+				headers: appendCorsHeaders(request),
 			})
 		}
 
@@ -44,6 +48,7 @@ export default {
 
 		const isPjax = request.headers.has('Ph-Pjax-Request')
 		const xRequestWith = request.headers.get('X-Requested-With')
+
 
 		if (url.pathname.indexOf('/ph-ajax/') !== -1 && !isPjax && xRequestWith === 'XMLHttpRequest') {
 			// if (url.pathname.indexOf('/ph-ajax/') !== -1) {
@@ -76,31 +81,33 @@ export default {
 			res = await fixturesRoute.fetch(request, { url })
 		} else if (url.pathname.startsWith('/highlight')) {
 			res = await highlightRoute.fetch(request)
+		} else if (url.pathname.startsWith('/upload')) {
+			res = await uploadRoute.fetch(request, { url, env })
+		} else if (url.pathname.startsWith('/get-file')) {
+			res = await getFileRoute.fetch(request, { url, env })
 		} else {
 			res = await fetch(request)
 		}
 
-
-		const nh = new Headers(res.headers)
-		if (phIdHeader || phGroupIdHeader) {
-			if (phIdHeader)
-				nh.set('Ph-Id', phIdHeader)
-			// append this header to immuatable response
-			if (phGroupIdHeader)
-				nh.set('Ph-Group-Id', phGroupIdHeader)
+		if (res) {
+			const resHeaders = res && new Headers(res.headers) || new Headers()
+			if (phIdHeader || phGroupIdHeader) {
+				if (phIdHeader)
+					resHeaders.set('Ph-Id', phIdHeader)
+				// append this header to immuatable response
+				if (phGroupIdHeader)
+					resHeaders.set('Ph-Group-Id', phGroupIdHeader)
+			}
+			console.log('response body:', res.body)
+			return new Response(res.body, {
+				status: res.status,
+				statusText: res.statusText,
+				headers: appendCorsHeaders(request, resHeaders),
+			})
+		} else {
+			return new Response('res is null', {
+				headers: appendCorsHeaders(request)
+			})
 		}
-		// echo 'Access-Control-Allow-Origin': origin,
-		// echo 'Access-Control-Allow-Credentials': 'true',
-
-		nh.set('Access-Control-Allow-Origin', request.headers.get('Origin') || '*')
-		nh.set('Access-Control-Allow-Credentials', 'true')
-		nh.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-		nh.set('Access-Control-Allow-Headers', '*')
-
-		return new Response(res.body, {
-			status: res.status,
-			statusText: res.statusText,
-			headers: nh,
-		})
 	},
 };

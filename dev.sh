@@ -4,4 +4,6 @@ unset HTTP_PROXY
 unset HTTPS_PROXY
 
 subcmd=${1:-"dev"}
-yarn wrangler $subcmd
+# and rest arguments
+shift
+yarn wrangler $subcmd $@

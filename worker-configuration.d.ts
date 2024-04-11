@@ -6,7 +6,8 @@ interface Env {
 	// MY_DURABLE_OBJECT: DurableObjectNamespace;
 	//
 	// Example binding to R2. Learn more at https://developers.cloudflare.com/workers/runtime-apis/r2/
-	// MY_BUCKET: R2Bucket;
+	AJAX_UPLOAD_DEMO_BUCKET: R2Bucket;
+	AUTH_AJAX_UPLOAD_SECRET: string;
 	//
 	// Example binding to a Service. Learn more at https://developers.cloudflare.com/workers/runtime-apis/service-bindings/
 	// MY_SERVICE: Fetcher;
