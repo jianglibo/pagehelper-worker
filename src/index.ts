@@ -24,8 +24,44 @@ function appendCorsHeaders(request: Request, headers?: Headers) {
 	return nh
 }
 
+async function doSche(env: Env) {
+	const bucket = env.AJAX_UPLOAD_DEMO_BUCKET
+	const options = {
+		limit: 500,
+		prefix: '/anonymous/',
+		// include: ['customMetadata'],
+	} as R2ListOptions
+
+	let next: R2Objects = await bucket.list(options);
+
+	let truncated = next.truncated;
+	let cursor
+	if (truncated) {
+		cursor = (next as any).cursor
+	} else {
+		cursor = undefined
+	}
+
+	await bucket.delete(next.objects.map(obj => obj.key))
+
+	while (truncated) {
+		next = await bucket.list({
+			...options,
+			cursor: cursor,
+		});
+		// listed.objects.push(...next.objects);
+		truncated = next.truncated;
+		cursor = (next as any).cursor
+		await bucket.delete(next.objects.map(obj => obj.key))
+	}
+	console.log('clean work donw.')
+}
+
 // Export a default object containing event handlers
 export default {
+	async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
+		ctx.waitUntil(doSche(env));
+	},
 	// The fetch handler is invoked when this worker receives a HTTP(S) request
 	// and should return a Response (optionally wrapped in a Promise)
 	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {

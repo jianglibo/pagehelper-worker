@@ -19,31 +19,37 @@ function authorizeRequest(request: Request, env: Env, key: string) {
 			return false;
 	}
 }
+
+async function putBlob(env: Env, bucket: R2Bucket, body: string | ReadableStream<any> | ArrayBuffer | ArrayBufferView | Blob | null, originFileName: string, fileext: string, request: Request, key?: string) {
+
+	const cus: Record<string, string> = {}
+	const random32alphadigits = Math.random().toString(36).substring(2, 34)
+	key = key || `${originFileName}.${Date.now()}.${random32alphadigits}.${fileext}`
+	if (!authorizeRequest(request, env, key)) {
+		key = `/anonymous/${key}`
+	}
+	console.log('put bucket.')
+	await bucket.put(key, body, { httpMetadata: request.headers, customMetadata: cus });
+	return new Response(JSON.stringify({
+		key,
+		url: `https://pagehelper.lets-script.com/get-file/${key}`,
+		originFileName: originFileName
+	}), {
+		headers: {
+			'Content-Type': 'application/json',
+		},
+	});
+}
 router.all("/r2-blob", async (request, { url, env }: { url: URL, env: Env }) => {
 	const bucket = env.AJAX_UPLOAD_DEMO_BUCKET;
 
-	const { filename, fileext } = request.query
-
-	// filename.timestamp.20randomdigits.fileext
-	const random32alphadigits = Math.random().toString(36).substring(2, 34)
-	let key = `${filename}.${Date.now()}.${random32alphadigits}.${fileext}`
-
-	if (!authorizeRequest(request, env, key)) {
-		key = 'cat'
-	}
+	const { filename, fileext, key } = request.query
 
 	switch (request.method) {
 		case 'PUT':
-			console.log('put bucket.')
-			await bucket.put(key, request.body, { httpMetadata: request.headers });
-			return new Response(JSON.stringify({ key, candicateUrl: `https://pagehelper.lets-script.com/get-file/${key}` }), {
-				headers: {
-					'Content-Type': 'application/json',
-				},
-			});
+			return putBlob(env, bucket, request.body, filename + '', fileext + '', request, key + '')
 		case 'GET':
-			const object = await bucket.get(key);
-
+			const object = await bucket.get(key + '');
 			if (object === null) {
 				return new Response('Object Not Found', { status: 404 });
 			}
@@ -55,7 +61,7 @@ router.all("/r2-blob", async (request, { url, env }: { url: URL, env: Env }) => 
 				headers,
 			});
 		case 'DELETE':
-			await bucket.delete(key);
+			await bucket.delete(key + '');
 			return new Response('Deleted!');
 
 		default:
@@ -69,7 +75,33 @@ router.all("/r2-blob", async (request, { url, env }: { url: URL, env: Env }) => 
 
 })
 
-router.all("/r2-multpart", async (request, { url, env }: { url: URL, env: Env }) => {
+router.all("/r2-multipart", async (request, { url, env }: { url: URL, env: Env }) => {
+	const formData = await request.formData();
+
+	// assume there's only one file.
+
+	const allItems: [string, FormDataEntryValue][] = []
+	formData.forEach((formItemValue, formItemKey) => {
+		allItems.push([formItemKey, formItemValue])
+	})
+
+	let fileItem = allItems.find(item => item[1] instanceof File)
+	let keyItem = allItems.find(item => item[0] === 'key')
+
+	if (fileItem) {
+		const file = fileItem[1] as File
+		const key = keyItem ? keyItem[1] + '' : undefined
+		let name = file.name
+		// take the name after lastslash
+		const originFileName = name.split('/').pop();
+		const ext = name.split('.').pop();
+		return putBlob(env, env.AJAX_UPLOAD_DEMO_BUCKET, file, originFileName + '', ext + '', request, key)
+	} else {
+		return new Response('No file found', { status: 400 })
+	}
+})
+
+router.all("/r2-multislice", async (request, { url, env }: { url: URL, env: Env }) => {
 	const bucket = env.AJAX_UPLOAD_DEMO_BUCKET;
 	let key = url.pathname.slice(1);
 	const action = url.searchParams.get("action");
@@ -81,7 +113,6 @@ router.all("/r2-multpart", async (request, { url, env }: { url: URL, env: Env })
 	if (action === null) {
 		return new Response("Missing action type", { status: 400 });
 	}
-
 	// Route the request based on the HTTP method and action type
 	switch (request.method) {
 		case "POST":
