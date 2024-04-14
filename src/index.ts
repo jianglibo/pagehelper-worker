@@ -12,10 +12,12 @@ import fixturesRoute from './fixture-router';
 import highlightRoute from './highlight-router'
 import uploadRoute from './upload-router'
 import getFileRoute from './get-file-router'
+import d1Reoute from './d1-endpoint'
+import completionRoute from "./completion-endpoint"
 
 export type WantType = 'map' | 'list' | 'raw'
 
-function appendCorsHeaders(request: Request, headers?: Headers) {
+export function appendCorsHeaders(request: Request, headers?: Headers) {
 	let nh = headers || new Headers()
 	nh.set('Access-Control-Allow-Origin', request.headers.get('Origin') || '*')
 	nh.set('Access-Control-Allow-Credentials', 'true')
@@ -28,7 +30,7 @@ async function doSche(env: Env) {
 	const bucket = env.AJAX_UPLOAD_DEMO_BUCKET
 	const options = {
 		limit: 500,
-		prefix: '/anonymous/',
+		prefix: 'anonymous/',
 		// include: ['customMetadata'],
 	} as R2ListOptions
 
@@ -66,7 +68,7 @@ export default {
 	// and should return a Response (optionally wrapped in a Promise)
 	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
 		// You'll find it helpful to parse the request.url string into a URL object. Learn more at https://developer.mozilla.org/en-US/docs/Web/API/URL
-
+		// console.log("entrypoint env: ", env)
 		// if the method is option, return allow cors headers
 		if (request.method === 'OPTIONS') {
 			return new Response(null, {
@@ -121,6 +123,10 @@ export default {
 			res = await uploadRoute.fetch(request, { url, env })
 		} else if (url.pathname.startsWith('/get-file')) {
 			res = await getFileRoute.fetch(request, { url, env })
+		} else if (url.pathname.startsWith('/d1')) {
+			res = await d1Reoute.fetch(request, { url, env })
+		} else if (url.pathname.startsWith('/completions')) {
+			res = await completionRoute.fetch(request, { url, env })
 		} else {
 			res = await fetch(request)
 		}

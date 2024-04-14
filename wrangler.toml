@@ -6,8 +6,9 @@ account_id = "4f3c7b8bd8c76a7cf8072775c945762b"
 # Variable bindings. These are arbitrary, plaintext strings (similar to environment variables)
 # Note: Use secrets to store sensitive data.
 # Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
-# [vars]
-# MY_VARIABLE = "production_value"
+[vars]
+VERIFY_ENDPOINT = "https://lets-script.com/apikey/verify"
+# SERVICE_X_DATA = { URL = "service-x-api.dev.example", MY_ID = 123 }
 
 # Bind the Workers AI model catalog. Run machine learning models, powered by serverless GPUs, on Cloudflare’s global network
 # Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#workers-ai
@@ -99,3 +100,10 @@ bucket_name = "ajax-upload-demo"
 [triggers]
 # every 30 minutes
 crons = [ "*/30 * * * *" ]
+
+[[d1_databases]]
+binding = "UPLOADER_DB" # i.e. available in your Worker on env.DB
+database_name = "uploader"
+database_id = "490de29a-9c71-4b63-bb53-347c57c014f0"
+
+# [env.dev]

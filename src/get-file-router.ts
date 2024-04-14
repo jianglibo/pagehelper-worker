@@ -20,39 +20,25 @@ function authorizeRequest(request: Request, env: Env, key: string) {
 			return false;
 	}
 }
-router.all("/:key", async (request, { url, env }: { url: URL, env: Env }) => {
+
+router.get("/:key+", async (request, { url, env }: { url: URL, env: Env }) => {
 	const bucket = env.AJAX_UPLOAD_DEMO_BUCKET;
 
-	const key = request.params.key
+	let key = request.params.key
 
-	switch (request.method) {
-		case 'GET':
-			const object = await bucket.get(key);
-
-			if (object === null) {
-				return new Response('Object Not Found', { status: 404 });
-			}
-			const headers = new Headers();
-			// if (object.httpMetadata) {
-			// 	Object.entries(object.httpMetadata)
-			// 		.forEach(([k, v]) => {
-			// 			headers.set(k, v)
-			// 		})
-			// }
-			object.writeHttpMetadata(headers);
-			headers.set('etag', object.httpEtag);
-			return new Response(object.body, {
-				headers,
-			});
-		default:
-			return new Response('Method Not Allowed', {
-				status: 405,
-				headers: {
-					Allow: 'GET',
-				},
-			});
+	if (key.startsWith('get-file/')) {
+		key = url.pathname.slice(10)
 	}
-
+	const object = await bucket.get(key);
+	if (object === null) {
+		return new Response('Object Not Found', { status: 404 });
+	}
+	const headers = new Headers();
+	object.writeHttpMetadata(headers);
+	headers.set('etag', object.httpEtag);
+	return new Response(object.body, {
+		headers,
+	});
 })
 
 export default router;

@@ -1,34 +1,71 @@
-import { Router, error, json, withParams } from 'itty-router';
+import { Router } from 'itty-router';
+import { appendCorsHeaders } from '.';
 
+export type Customer = {
+	id: string;
+	uid: string;
+	phApiKey: string;
+	apiKeyExpireAt: number,
+	createAt: number;
+}
+// {"data":{"id":543,"name":"R2-Uploader-Key","maxusages":null,"willExpireInSeconds":null,"password":null,"scope":"r2uploader;","will_expire_at":"2025-04-13T01:32:49.213969Z","user_id":30,"created_at":"2024-04-13T01:32:49.213969Z"}}
+// create the type for json above
+type ApiKeyVerifyResult = {
+	willExpireAt: number;
+	uid: number;
+}
 
 const router = Router({
 	base: '/upload',
 })
 
-const hasValidHeader = (request: Request, env: Env) => {
-	return request.headers.get('X-Custom-Auth-Key') === env.AUTH_AJAX_UPLOAD_SECRET;
-};
-
-function authorizeRequest(request: Request, env: Env, key: string) {
-	switch (request.method) {
-		case 'PUT':
-		case 'DELETE':
-		case 'GET':
-			return hasValidHeader(request, env);
-		default:
-			return false;
+async function getCustomerByPhApikey(phApiKey: string, env: Env) {
+	const result = await env.UPLOADER_DB.prepare(
+		"SELECT * FROM Customers WHERE phApiKey = ?"
+	).bind(phApiKey)
+		.all<Customer>();
+	if (result?.results?.length > 0) {
+		const customer = result.results[0]
+		if (customer.apiKeyExpireAt > Date.now()) {
+			return result.results[0]
+		}
+	} else {
+		console.log("start to verify.")
+		return await verifyApiKey(phApiKey, env)
 	}
 }
 
-async function putBlob(env: Env, bucket: R2Bucket, body: string | ReadableStream<any> | ArrayBuffer | ArrayBufferView | Blob | null, originFileName: string, fileext: string, request: Request, key?: string) {
-
-	const cus: Record<string, string> = {}
+async function calKey(originFileName: string, fileext: string, apikey: string, env: Env, key?: string) {
 	const random32alphadigits = Math.random().toString(36).substring(2, 34)
 	key = key || `${originFileName}.${Date.now()}.${random32alphadigits}.${fileext}`
-	if (!authorizeRequest(request, env, key)) {
-		key = `/anonymous/${key}`
+	// const apikey = request.headers.get('Ph-Api-Key')
+	if (!apikey || apikey.length < 34) {
+		key = `anonymous/${key}`
+	} else {
+		console.log("start fetch Customer by apikey:", apikey)
+		const customer = await getCustomerByPhApikey(apikey, env)
+		console.log("done fetch Customer by apikey:", customer)
+		if (!customer) {
+			key = `anonymous/${key}`
+		} else {
+			key = `${customer.uid}/${key}`
+		}
 	}
-	console.log('put bucket.')
+
+	return key
+
+}
+
+async function putBlob(env: Env, bucket: R2Bucket,
+	body: string | ReadableStream<any> | ArrayBuffer | ArrayBufferView | Blob | null,
+	originFileName: string,
+	fileext: string,
+	request: Request,
+	key?: string) {
+
+	const cus: Record<string, string> = {}
+	key = await calKey(originFileName, fileext, request.headers.get('Ph-Api-Key') as string, env, key)
+
 	await bucket.put(key, body, { httpMetadata: request.headers, customMetadata: cus });
 	return new Response(JSON.stringify({
 		key,
@@ -40,16 +77,79 @@ async function putBlob(env: Env, bucket: R2Bucket, body: string | ReadableStream
 		},
 	});
 }
+
+
+async function verifyApiKey(apikey: string, env: Env) {
+	const query = new URLSearchParams()
+	query.set("scope", "r2uploader");
+	const toFetchUrl = env.VERIFY_ENDPOINT + '?' + query.toString()
+	// 'Ph-Api-Key': "543-zKx753TgTGXWvtRJP9IgE7-Dy0MuaOX9",
+	console.log("start invoke fetch to lets-script.com")
+	const res = await fetch(toFetchUrl, {
+		method: 'GET',
+		headers: {
+			'Ph-Api-Key': apikey,
+		}
+	})
+	const v = await res.json() as { data: ApiKeyVerifyResult }
+	console.log("got the verify result:", v)
+	if (v) {
+		const result = await env.UPLOADER_DB.prepare(
+			"INSERT INTO Customers (uid, phApiKey, apiKeyExpireAt) VALUES (?, ?, ?)"
+		).bind(v.data.uid, apikey, v.data.willExpireAt)
+			.all<Customer>();
+
+		const newAdded = await env.UPLOADER_DB.prepare("SELECT * FROM Customers WHERE id = ?")
+			.bind(result.meta.last_row_id)
+			.all();
+
+		console.log("insert Customer table result:", newAdded)
+		if (newAdded?.results?.length > 0) {
+			return newAdded.results[0]
+		}
+	}
+}
+// curl to this endpoint, with header and query
+// curl -H "Ph-Api-Key: secret key" http://lets-script.com/apikey/verify?scope=r2uploader
+
+router.get("/apikey", async (request, { url, env }: { url: URL, env: Env }) => {
+	if (await verifyApiKey(request.headers.get('Ph-Api-Key') as string, env)) {
+		return new Response(JSON.stringify("ok"), {
+			headers: appendCorsHeaders(request)
+		})
+	} else {
+		const respData = {
+			data: [
+				{
+					"action": "TOAST",
+					"params": {
+						"toast": {
+							"icon": "warn",
+							"title": "Invalid Apikey.",
+							"timer": 3000
+						}
+					}
+				},
+			]
+		}
+		return new Response(JSON.stringify(respData), {
+			headers: appendCorsHeaders(request)
+		})
+	}
+})
+
 router.all("/r2-blob", async (request, { url, env }: { url: URL, env: Env }) => {
 	const bucket = env.AJAX_UPLOAD_DEMO_BUCKET;
 
 	const { filename, fileext, key } = request.query
 
+	const ext = (filename === fileext) ? '' : fileext as string
+
 	switch (request.method) {
 		case 'PUT':
-			return putBlob(env, bucket, request.body, filename + '', fileext + '', request, key + '')
+			return putBlob(env, bucket, request.body, filename as string, ext, request, key as string)
 		case 'GET':
-			const object = await bucket.get(key + '');
+			const object = await bucket.get(key as string);
 			if (object === null) {
 				return new Response('Object Not Found', { status: 404 });
 			}
@@ -72,14 +172,13 @@ router.all("/r2-blob", async (request, { url, env }: { url: URL, env: Env }) => 
 				},
 			});
 	}
-
 })
+
+
 
 router.all("/r2-multipart", async (request, { url, env }: { url: URL, env: Env }) => {
 	const formData = await request.formData();
-
 	// assume there's only one file.
-
 	const allItems: [string, FormDataEntryValue][] = []
 	formData.forEach((formItemValue, formItemKey) => {
 		allItems.push([formItemKey, formItemValue])
@@ -90,7 +189,7 @@ router.all("/r2-multipart", async (request, { url, env }: { url: URL, env: Env }
 
 	if (fileItem) {
 		const file = fileItem[1] as File
-		const key = keyItem ? keyItem[1] + '' : undefined
+		let key = keyItem ? keyItem[1] as string : undefined
 		let name = file.name
 		// take the name after lastslash
 		const originFileName = name.split('/').pop();
@@ -106,9 +205,9 @@ router.all("/r2-multislice", async (request, { url, env }: { url: URL, env: Env 
 	let key = url.pathname.slice(1);
 	const action = url.searchParams.get("action");
 
-	if (!authorizeRequest(request, env, key)) {
-		return new Response('Forbidden', { status: 403 });
-	}
+	// if (!authorizeRequest(request, env, key)) {
+	// 	return new Response('Forbidden', { status: 403 });
+	// }
 
 	if (action === null) {
 		return new Response("Missing action type", { status: 400 });

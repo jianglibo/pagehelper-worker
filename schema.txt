@@ -1,0 +1,10 @@
+-- yarn wrangler d1 execute UPLOADER_DB --local --command="SELECT * FROM Customers"
+-- https://www.sqlite.org/datatype3.html
+
+https://developers.cloudflare.com/d1/get-started
+
+-- CREATE UNIQUE INDEX idx_unique_sessionId ON Customers(sessionId);
+-- INSERT INTO Customers(email, sessionId, prefix)
+--     VALUES ('jianglibo@hotmail.com', 'sessionid', 'prefix');
+
+yarn wrangler d1 execute uploader --local --file=./schema.sql
