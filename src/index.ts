@@ -15,6 +15,7 @@ import getFileRoute from './get-file-router'
 import d1Reoute from './d1-endpoint'
 import completionRoute from "./completion-endpoint"
 import relayRoute from './relay-router'
+import phmiscRoute from "./ph-misc"
 
 export type WantType = 'map' | 'list' | 'raw'
 
@@ -130,6 +131,16 @@ export default {
 			res = await relayRoute.fetch(request, { url, env })
 		} else if (url.pathname.startsWith('/completions')) {
 			res = await completionRoute.fetch(request, { url, env })
+		} else if (url.pathname.startsWith('/ph-misc')) {
+			res = await phmiscRoute.fetch(request, { url, env })
+		} else if (url.pathname.startsWith('/linters/')) {
+			const destinationURL = 'https://worker-1.lets-script.com' + url.pathname
+			// Forward the request to the destination URL
+			res = await fetch(destinationURL, {
+				method: request.method,
+				headers: request.headers,
+				body: request.body
+			})
 		} else {
 			res = await fetch(request)
 		}
