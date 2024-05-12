@@ -14,6 +14,7 @@ import uploadRoute from './upload-router'
 import getFileRoute from './get-file-router'
 import d1Reoute from './d1-endpoint'
 import completionRoute from "./completion-endpoint"
+import relayRoute from './relay-router'
 
 export type WantType = 'map' | 'list' | 'raw'
 
@@ -125,6 +126,8 @@ export default {
 			res = await getFileRoute.fetch(request, { url, env })
 		} else if (url.pathname.startsWith('/d1')) {
 			res = await d1Reoute.fetch(request, { url, env })
+		} else if (url.pathname.startsWith('/relay')) {
+			res = await relayRoute.fetch(request, { url, env })
 		} else if (url.pathname.startsWith('/completions')) {
 			res = await completionRoute.fetch(request, { url, env })
 		} else {

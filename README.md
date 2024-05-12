@@ -14,5 +14,5 @@
 ╰ See you again soon!
 
 ## scripts
-yarn dev.sh
-yarn dev.sh deploy
+bash dev.sh
+bash dev.sh deploy
